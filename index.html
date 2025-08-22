@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         body { font-family: 'Roboto', sans-serif; background-color: #f8f9fa; }
         .control-panel { background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
@@ -27,12 +28,12 @@
         #camera-feed { background-color: #000; border-radius: 5px; width: 100%; height: auto; }
         .controller { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto 1fr 1fr 1fr; gap: 8px; max-width: 300px; margin: 20px auto; }
         button { padding: 15px 0; font-size: 16px; border: none; border-radius: 8px; min-width: 60px; touch-action: manipulation; }
-        #modeBtn { grid-column: 1 / span 3; background-color: #4CAF50; color: white; font-weight: bold; padding: 12px; }
-        #forward { grid-column: 2; grid-row: 2; background-color: #2196F3; color: white; }
-        #left { grid-column: 1; grid-row: 3; background-color: #FF9800; color: white; }
-        #stop { grid-column: 2; grid-row: 3; background-color: #f44336; color: white; }
-        #right { grid-column: 3; grid-row: 3; background-color: #FF9800; color: white; }
-        #backward { grid-column: 2; grid-row: 4; background-color: #2196F3; color: white; }
+        #modeBtn, #modeBtn-2 { grid-column: 1 / span 3; background-color: #4CAF50; color: white; font-weight: bold; padding: 12px; }
+        #forward, #forward-2 { grid-column: 2; grid-row: 2; background-color: #2196F3; color: white; }
+        #left, #left-2 { grid-column: 1; grid-row: 3; background-color: #FF9800; color: white; }
+        #stop, #stop-2 { grid-column: 2; grid-row: 3; background-color: #f44336; color: white; }
+        #right, #right-2 { grid-column: 3; grid-row: 3; background-color: #FF9800; color: white; }
+        #backward, #backward-2 { grid-column: 2; grid-row: 4; background-color: #2196F3; color: white; }
         .arrow { font-size: 20px; }
         .pressed { opacity: 0.7; }
         .sensor-header { 
@@ -78,6 +79,11 @@
             padding: 20px;
             background-color: white;
         }
+        .chart-container {
+            position: relative;
+            margin-bottom: 20px;
+            height: 150px;
+        }
     </style>
 </head>
 <body>
@@ -102,7 +108,6 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <!-- Tab Navigation -->
                 <div class="tabs-container mb-0">
                     <div class="tab-button active" data-tab="main-view">
                         <i class="bi bi-display"></i> Main View
@@ -112,7 +117,6 @@
                     </div>
                 </div>
                 
-                <!-- Main View Tab -->
                 <div class="tab-panel tab-content active" id="main-view">
                     <div class="control-panel mb-3">
                         <h4 class="mb-3">Camera Feed</h4>
@@ -168,7 +172,7 @@
                             </button>
                         </div>
                         <div class="controller">
-                            <button id="modeBtn">MANUAL MODE</button>
+                            <button id="modeBtn">AUTO MODE</button>
                             <button id="forward" class="arrow">↑</button>
                             <button id="left" class="arrow">←</button>
                             <button id="stop">STOP</button>
@@ -183,7 +187,6 @@
                     </div>
                 </div>
                 
-                <!-- Sensor Data Tab -->
                 <div class="tab-panel tab-content" id="sensor-data">
                     <div class="sensor-panel">
                         <div class="sensor-header">
@@ -194,17 +197,29 @@
                             <strong>Temperature:</strong> 
                             <span id="temperature">Unknown</span>
                         </div>
+                        <div class="chart-container">
+                            <canvas id="temperature-chart"></canvas>
+                        </div>
                         <div class="status-item">
                             <strong>Altitude:</strong> 
                             <span id="altitude">Unknown</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="altitude-chart"></canvas>
                         </div>
                         <div class="status-item">
                             <strong>MQ2 (Combustible Gas):</strong> 
                             <span id="mq2">Unknown</span>
                         </div>
+                        <div class="chart-container">
+                            <canvas id="mq2-chart"></canvas>
+                        </div>
                         <div class="status-item">
                             <strong>MQ135 (Air Quality):</strong> 
                             <span id="mq135">Unknown</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="mq135-chart"></canvas>
                         </div>
                     </div>
                     
@@ -219,7 +234,7 @@
                             </button>
                         </div>
                         <div class="controller">
-                            <button id="modeBtn-2">MANUAL MODE</button>
+                            <button id="modeBtn-2">AUTO MODE</button>
                             <button id="forward-2" class="arrow">↑</button>
                             <button id="left-2" class="arrow">←</button>
                             <button id="stop-2">STOP</button>
@@ -248,7 +263,8 @@
             maxSpeed: 0.8,
             maxAngular: 1.0,
             mapRefreshInterval: 1000,
-            connectionRetryInterval: 3000
+            connectionRetryInterval: 3000,
+            maxDataPoints: 20 // Maximum points to show in sensor graphs
         };
 
         let state = {
@@ -266,7 +282,14 @@
             mapContext: null,
             activeCommand: null,
             mapOffsetX: 0,
-            mapOffsetY: 0
+            mapOffsetY: 0,
+            sensorHistory: {
+                temperature: [],
+                altitude: [],
+                mq2: [],
+                mq135: []
+            },
+            charts: {}
         };
 
         const elements = {
@@ -299,7 +322,6 @@
                 right: document.getElementById('right'),
                 stop: document.getElementById('stop'),
                 modeBtn: document.getElementById('modeBtn'),
-                // Second set of buttons for sensor tab
                 autoMode2: document.getElementById('auto-mode-btn-2'),
                 manualMode2: document.getElementById('manual-mode-btn-2'),
                 emergencyStop2: document.getElementById('emergency-stop-btn-2'),
@@ -314,19 +336,165 @@
                 mainView: document.getElementById('main-view'),
                 sensorData: document.getElementById('sensor-data'),
                 tabButtons: document.querySelectorAll('.tab-button')
+            },
+            charts: {
+                temperature: document.getElementById('temperature-chart'),
+                altitude: document.getElementById('altitude-chart'),
+                mq2: document.getElementById('mq2-chart'),
+                mq135: document.getElementById('mq135-chart')
             }
         };
+
+        // Initialize charts
+        function initCharts() {
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true }
+                    }
+                }
+            };
+
+            state.charts.temperature = new Chart(elements.charts.temperature, {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: '#dc3545',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartConfig.options,
+                    plugins: {
+                        ...chartConfig.options.plugins,
+                        title: { text: 'Temperature (°C)' }
+                    }
+                }
+            });
+
+            state.charts.altitude = new Chart(elements.charts.altitude, {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: '#0d6efd',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartConfig.options,
+                    plugins: {
+                        ...chartConfig.options.plugins,
+                        title: { text: 'Altitude (m)' }
+                    }
+                }
+            });
+
+            state.charts.mq2 = new Chart(elements.charts.mq2, {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: '#198754',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartConfig.options,
+                    plugins: {
+                        ...chartConfig.options.plugins,
+                        title: { text: 'MQ2 (ppm)' }
+                    }
+                }
+            });
+
+            state.charts.mq135 = new Chart(elements.charts.mq135, {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: '#ffc107',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...chartConfig.options,
+                    plugins: {
+                        ...chartConfig.options.plugins,
+                        title: { text: 'MQ135 (ppm)' }
+                    }
+                }
+            });
+        }
+
+        // Update chart data
+        function updateCharts(data) {
+            const timestamp = new Date().toLocaleTimeString();
+            
+            // Update temperature
+            state.sensorHistory.temperature.push(data.temperature);
+            if (state.sensorHistory.temperature.length > config.maxDataPoints) {
+                state.sensorHistory.temperature.shift();
+                state.charts.temperature.data.labels.shift();
+            }
+            state.charts.temperature.data.labels.push(timestamp);
+            state.charts.temperature.data.datasets[0].data = state.sensorHistory.temperature;
+            state.charts.temperature.update();
+
+            // Update altitude
+            state.sensorHistory.altitude.push(data.altitude);
+            if (state.sensorHistory.altitude.length > config.maxDataPoints) {
+                state.sensorHistory.altitude.shift();
+                state.charts.altitude.data.labels.shift();
+            }
+            state.charts.altitude.data.labels.push(timestamp);
+            state.charts.altitude.data.datasets[0].data = state.sensorHistory.altitude;
+            state.charts.altitude.update();
+
+            // Update MQ2
+            state.sensorHistory.mq2.push(data.mq2);
+            if (state.sensorHistory.mq2.length > config.maxDataPoints) {
+                state.sensorHistory.mq2.shift();
+                state.charts.mq2.data.labels.shift();
+            }
+            state.charts.mq2.data.labels.push(timestamp);
+            state.charts.mq2.data.datasets[0].data = state.sensorHistory.mq2;
+            state.charts.mq2.update();
+
+            // Update MQ135
+            state.sensorHistory.mq135.push(data.mq135);
+            if (state.sensorHistory.mq135.length > config.maxDataPoints) {
+                state.sensorHistory.mq135.shift();
+                state.charts.mq135.data.labels.shift();
+            }
+            state.charts.mq135.data.labels.push(timestamp);
+            state.charts.mq135.data.datasets[0].data = state.sensorHistory.mq135;
+            state.charts.mq135.update();
+        }
 
         // Tab switching functionality
         elements.tabs.tabButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const tabId = button.getAttribute('data-tab');
-                
-                // Update active tab button
                 elements.tabs.tabButtons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
-                
-                // Update active tab content
                 document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
             });
@@ -361,67 +529,53 @@
             }, {passive: false});
         }
 
-        // Setup first set of buttons
-        setupButton('forward', 'FORWARD');
-        setupButton('backward', 'BACKWARD');
-        setupButton('left', 'LEFT');
-        setupButton('right', 'RIGHT');
-        
-        // Setup second set of buttons
-        setupButton('forward2', 'FORWARD');
-        setupButton('backward2', 'BACKWARD');
-        setupButton('left2', 'LEFT');
-        setupButton('right2', 'RIGHT');
-        
-        elements.buttons.stop.addEventListener('click', () => {
-            sendCommand('STOP', 'press');
-            elements.buttons.forward.classList.remove('pressed');
-            elements.buttons.backward.classList.remove('pressed');
-            elements.buttons.left.classList.remove('pressed');
-            elements.buttons.right.classList.remove('pressed');
-        });
-        
-        elements.buttons.stop2.addEventListener('click', () => {
-            sendCommand('STOP', 'press');
-            elements.buttons.forward2.classList.remove('pressed');
-            elements.buttons.backward2.classList.remove('pressed');
-            elements.buttons.left2.classList.remove('pressed');
-            elements.buttons.right2.classList.remove('pressed');
+        // Setup all control buttons
+        ['forward', 'backward', 'left', 'right', 'forward2', 'backward2', 'left2', 'right2'].forEach(id => {
+            setupButton(id, id.replace('2', '').toUpperCase());
         });
 
-        elements.buttons.modeBtn.addEventListener('click', () => {
-            setMode(!state.manualMode);
-        });
-        
-        elements.buttons.modeBtn2.addEventListener('click', () => {
-            setMode(!state.manualMode);
-        });
+        function setupStopButton(id) {
+            const button = elements.buttons[id];
+            button.addEventListener('click', () => {
+                sendCommand('STOP', 'press');
+                ['forward', 'backward', 'left', 'right', 'forward2', 'backward2', 'left2', 'right2'].forEach(btnId => {
+                    elements.buttons[btnId].classList.remove('pressed');
+                });
+            });
+        }
 
-        elements.buttons.emergencyStop.addEventListener('click', () => {
-            sendCommand('STOP', 'press');
-            showEmergencyStop('Manual emergency stop');
-        });
-        
-        elements.buttons.emergencyStop2.addEventListener('click', () => {
-            sendCommand('STOP', 'press');
-            showEmergencyStop('Manual emergency stop');
-        });
+        setupStopButton('stop');
+        setupStopButton('stop2');
 
-        elements.buttons.autoMode.addEventListener('click', () => {
-            setMode(false);
-        });
-        
-        elements.buttons.autoMode2.addEventListener('click', () => {
-            setMode(false);
-        });
+        function setupModeButton(id) {
+            elements.buttons[id].addEventListener('click', () => {
+                setMode(!state.manualMode);
+            });
+        }
 
-        elements.buttons.manualMode.addEventListener('click', () => {
-            setMode(true);
-        });
-        
-        elements.buttons.manualMode2.addEventListener('click', () => {
-            setMode(true);
-        });
+        setupModeButton('modeBtn');
+        setupModeButton('modeBtn2');
+
+        function setupEmergencyStopButton(id) {
+            elements.buttons[id].addEventListener('click', () => {
+                sendCommand('STOP', 'press');
+                showEmergencyStop('Manual emergency stop');
+            });
+        }
+
+        setupEmergencyStopButton('emergencyStop');
+        setupEmergencyStopButton('emergencyStop2');
+
+        function setupModeToggleButton(id, isManual) {
+            elements.buttons[id].addEventListener('click', () => {
+                setMode(isManual);
+            });
+        }
+
+        setupModeToggleButton('autoMode', false);
+        setupModeToggleButton('manualMode', true);
+        setupModeToggleButton('autoMode2', false);
+        setupModeToggleButton('manualMode2', true);
 
         function sendCommand(cmd, action) {
             fetch('/control', {
@@ -488,6 +642,7 @@
             });
             state.socket.on('sensor_update', (data) => {
                 updateSensorData(data);
+                updateCharts(data);
             });
             state.socket.on('heartbeat', () => {
                 updateConnectionStatus(true);
@@ -576,30 +731,23 @@
             const originX = state.mapData.origin.x;
             const originY = state.mapData.origin.y;
             
-            // Calculate the robot position in pixels
-            // Note: In ROS, the map origin is at the bottom-left, but in HTML canvas it's top-left
-            // So we need to flip the Y coordinate
             const robotX = (state.robotPose.x - originX) / resolution;
             const robotY = state.mapData.height - ((state.robotPose.y - originY) / resolution);
             
-            // Create robot marker
             state.robotMarker = document.createElement('div');
             state.robotMarker.className = 'robot-marker';
             state.robotMarker.style.left = `${robotX}px`;
             state.robotMarker.style.top = `${robotY}px`;
             elements.mapOverlay.appendChild(state.robotMarker);
             
-            // Create robot direction indicator
             state.robotDirection = document.createElement('div');
             state.robotDirection.className = 'robot-direction';
             state.robotDirection.style.left = `${robotX}px`;
             state.robotDirection.style.top = `${robotY}px`;
-            // Convert yaw to degrees and adjust for HTML coordinate system
             const yawDegrees = state.robotPose.yaw * 180 / Math.PI;
             state.robotDirection.style.transform = `translate(-50%, -50%) rotate(${-yawDegrees}deg)`;
             elements.mapOverlay.appendChild(state.robotDirection);
             
-            // Add LIDAR points
             if (state.lidarPoints && state.lidarPoints.length > 0) {
                 state.lidarPoints.forEach(point => {
                     const lidarPoint = document.createElement('div');
@@ -610,7 +758,6 @@
                 });
             }
             
-            // Add human markers
             state.humanMarkers.forEach(marker => {
                 const humanMarker = document.createElement('div');
                 humanMarker.className = 'human-marker';
@@ -631,21 +778,16 @@
             const originX = state.mapData.origin.x;
             const originY = state.mapData.origin.y;
             
-            // Calculate the robot position in pixels (with Y flipped)
             const robotX = (state.robotPose.x - originX) / resolution;
             const robotY = state.mapData.height - ((state.robotPose.y - originY) / resolution);
             
             data.ranges.forEach((range, i) => {
                 if (range > 0 && range < 10) {
                     const angle = data.angles[i];
-                    // Calculate LIDAR point in world coordinates
                     const worldX = state.robotPose.x + range * Math.cos(angle + state.robotPose.yaw);
                     const worldY = state.robotPose.y + range * Math.sin(angle + state.robotPose.yaw);
-                    
-                    // Convert to pixel coordinates (flip Y)
                     const x = (worldX - originX) / resolution;
                     const y = state.mapData.height - ((worldY - originY) / resolution);
-                    
                     state.lidarPoints.push({ x, y });
                 }
             });
@@ -669,7 +811,10 @@
         function fetchSensorData() {
             fetch('/sensor_data')
                 .then(response => response.json())
-                .then(data => updateSensorData(data))
+                .then(data => {
+                    updateSensorData(data);
+                    updateCharts(data);
+                })
                 .catch(error => console.error('Sensor data fetch error:', error));
         }
 
@@ -677,14 +822,9 @@
             alert(`Emergency Stop: ${reason}`);
             setMode(false);
             state.activeCommand = null;
-            elements.buttons.forward.classList.remove('pressed');
-            elements.buttons.backward.classList.remove('pressed');
-            elements.buttons.left.classList.remove('pressed');
-            elements.buttons.right.classList.remove('pressed');
-            elements.buttons.forward2.classList.remove('pressed');
-            elements.buttons.backward2.classList.remove('pressed');
-            elements.buttons.left2.classList.remove('pressed');
-            elements.buttons.right2.classList.remove('pressed');
+            ['forward', 'backward', 'left', 'right', 'forward2', 'backward2', 'left2', 'right2'].forEach(btnId => {
+                elements.buttons[btnId].classList.remove('pressed');
+            });
         }
 
         function updateStatus() {
@@ -721,14 +861,9 @@
                 e.preventDefault();
                 if (cmd === 'STOP') {
                     sendCommand(cmd, 'press');
-                    elements.buttons.forward.classList.remove('pressed');
-                    elements.buttons.backward.classList.remove('pressed');
-                    elements.buttons.left.classList.remove('pressed');
-                    elements.buttons.right.classList.remove('pressed');
-                    elements.buttons.forward2.classList.remove('pressed');
-                    elements.buttons.backward2.classList.remove('pressed');
-                    elements.buttons.left2.classList.remove('pressed');
-                    elements.buttons.right2.classList.remove('pressed');
+                    ['forward', 'backward', 'left', 'right', 'forward2', 'backward2', 'left2', 'right2'].forEach(btnId => {
+                        elements.buttons[btnId].classList.remove('pressed');
+                    });
                 } else {
                     state.activeCommand = cmd;
                     sendCommand(cmd, 'press');
@@ -755,6 +890,7 @@
             }
         });
 
+        initCharts();
         initWebSocket();
     </script>
 </body>
