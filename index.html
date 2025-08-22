@@ -47,6 +47,37 @@
             margin-right: 10px; 
             color: #0d6efd;
         }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-button {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            font-weight: 500;
+        }
+        .tab-button.active {
+            background-color: white;
+            border-bottom: none;
+        }
+        .tabs-container {
+            display: flex;
+            margin-bottom: -1px;
+            z-index: 1;
+            position: relative;
+        }
+        .tab-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 0 5px 5px 5px;
+            padding: 20px;
+            background-color: white;
+        }
     </style>
 </head>
 <body>
@@ -71,96 +102,135 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="control-panel">
-                    <h4 class="mb-3">Camera Feed</h4>
-                    <div class="ratio ratio-16x9">
-                        <img id="camera-feed" src="/video_feed" class="img-fluid" alt="Camera Feed">
+                <!-- Tab Navigation -->
+                <div class="tabs-container mb-0">
+                    <div class="tab-button active" data-tab="main-view">
+                        <i class="bi bi-display"></i> Main View
+                    </div>
+                    <div class="tab-button" data-tab="sensor-data">
+                        <i class="bi bi-speedometer2"></i> Sensor Data
                     </div>
                 </div>
                 
-                <!-- Status Panel (Robot Status) -->
-                <div class="status-panel">
-                    <h4 class="mb-3">Robot Status</h4>
-                    <div class="status-item">
-                        <strong>Connection:</strong> 
-                        <span id="connection-status" class="badge bg-danger">Disconnected</span>
+                <!-- Main View Tab -->
+                <div class="tab-panel tab-content active" id="main-view">
+                    <div class="control-panel mb-3">
+                        <h4 class="mb-3">Camera Feed</h4>
+                        <div class="ratio ratio-16x9">
+                            <img id="camera-feed" src="/video_feed" class="img-fluid" alt="Camera Feed">
+                        </div>
                     </div>
-                    <div class="status-item">
-                        <strong>Mode:</strong> 
-                        <span id="mode-indicator" class="mode-indicator mode-auto">AUTO</span>
+                    
+                    <div class="status-panel">
+                        <h4 class="mb-3">Robot Status</h4>
+                        <div class="status-item">
+                            <strong>Connection:</strong> 
+                            <span id="connection-status" class="badge bg-danger">Disconnected</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Mode:</strong> 
+                            <span id="mode-indicator" class="mode-indicator mode-auto">AUTO</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Position:</strong> 
+                            <span id="robot-position">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Orientation:</strong> 
+                            <span id="robot-orientation">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Map Resolution:</strong> 
+                            <span id="resolution">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Last Update:</strong> 
+                            <span id="last-update">Never</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>LIDAR:</strong> 
+                            <span id="lidar-status" class="fw-bold text-danger">Inactive</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Obstacles:</strong> 
+                            <span id="obstacle-status" class="fw-bold text-success">Clear</span>
+                        </div>
                     </div>
-                    <div class="status-item">
-                        <strong>Position:</strong> 
-                        <span id="robot-position">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>Orientation:</strong> 
-                        <span id="robot-orientation">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>Map Resolution:</strong> 
-                        <span id="resolution">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>Last Update:</strong> 
-                        <span id="last-update">Never</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>LIDAR:</strong> 
-                        <span id="lidar-status" class="fw-bold text-danger">Inactive</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>Obstacles:</strong> 
-                        <span id="obstacle-status" class="fw-bold text-success">Clear</span>
+                    
+                    <div class="control-panel">
+                        <h4 class="mb-3">Control</h4>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-3">
+                            <button id="auto-mode-btn" class="btn btn-primary">
+                                <i class="bi bi-robot"></i> Auto Mode
+                            </button>
+                            <button id="manual-mode-btn" class="btn btn-secondary">
+                                <i class="bi bi-joystick"></i> Manual Mode
+                            </button>
+                        </div>
+                        <div class="controller">
+                            <button id="modeBtn">MANUAL MODE</button>
+                            <button id="forward" class="arrow">↑</button>
+                            <button id="left" class="arrow">←</button>
+                            <button id="stop">STOP</button>
+                            <button id="right" class="arrow">→</button>
+                            <button id="backward" class="arrow">↓</button>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button id="emergency-stop-btn" class="btn btn-danger">
+                                <i class="bi bi-exclamation-octagon-fill"></i> Emergency Stop
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- New Sensor Data Panel -->
-                <div class="sensor-panel">
-                    <div class="sensor-header">
-                        <i class="bi bi-speedometer2"></i>
-                        <h4 class="mb-0">Sensor Data</h4>
+                <!-- Sensor Data Tab -->
+                <div class="tab-panel tab-content" id="sensor-data">
+                    <div class="sensor-panel">
+                        <div class="sensor-header">
+                            <i class="bi bi-speedometer2"></i>
+                            <h4 class="mb-0">Sensor Data</h4>
+                        </div>
+                        <div class="status-item">
+                            <strong>Temperature:</strong> 
+                            <span id="temperature">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>Altitude:</strong> 
+                            <span id="altitude">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>MQ2 (Combustible Gas):</strong> 
+                            <span id="mq2">Unknown</span>
+                        </div>
+                        <div class="status-item">
+                            <strong>MQ135 (Air Quality):</strong> 
+                            <span id="mq135">Unknown</span>
+                        </div>
                     </div>
-                    <div class="status-item">
-                        <strong>Temperature:</strong> 
-                        <span id="temperature">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>Altitude:</strong> 
-                        <span id="altitude">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>MQ2 (Combustible Gas):</strong> 
-                        <span id="mq2">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <strong>MQ135 (Air Quality):</strong> 
-                        <span id="mq135">Unknown</span>
-                    </div>
-                </div>
-                
-                <div class="control-panel">
-                    <h4 class="mb-3">Control</h4>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-3">
-                        <button id="auto-mode-btn" class="btn btn-primary">
-                            <i class="bi bi-robot"></i> Auto Mode
-                        </button>
-                        <button id="manual-mode-btn" class="btn btn-secondary">
-                            <i class="bi bi-joystick"></i> Manual Mode
-                        </button>
-                    </div>
-                    <div class="controller">
-                        <button id="modeBtn">MANUAL MODE</button>
-                        <button id="forward" class="arrow">↑</button>
-                        <button id="left" class="arrow">←</button>
-                        <button id="stop">STOP</button>
-                        <button id="right" class="arrow">→</button>
-                        <button id="backward" class="arrow">↓</button>
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button id="emergency-stop-btn" class="btn btn-danger">
-                            <i class="bi bi-exclamation-octagon-fill"></i> Emergency Stop
-                        </button>
+                    
+                    <div class="control-panel">
+                        <h4 class="mb-3">Control</h4>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-3">
+                            <button id="auto-mode-btn-2" class="btn btn-primary">
+                                <i class="bi bi-robot"></i> Auto Mode
+                            </button>
+                            <button id="manual-mode-btn-2" class="btn btn-secondary">
+                                <i class="bi bi-joystick"></i> Manual Mode
+                            </button>
+                        </div>
+                        <div class="controller">
+                            <button id="modeBtn-2">MANUAL MODE</button>
+                            <button id="forward-2" class="arrow">↑</button>
+                            <button id="left-2" class="arrow">←</button>
+                            <button id="stop-2">STOP</button>
+                            <button id="right-2" class="arrow">→</button>
+                            <button id="backward-2" class="arrow">↓</button>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button id="emergency-stop-btn-2" class="btn btn-danger">
+                                <i class="bi bi-exclamation-octagon-fill"></i> Emergency Stop
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -170,8 +240,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-        // The JavaScript code remains exactly the same as in your original
-        // Only the HTML structure has been modified
         const config = {
             initScale: 1.0,
             scaleStep: 0.2,
@@ -230,9 +298,39 @@
                 left: document.getElementById('left'),
                 right: document.getElementById('right'),
                 stop: document.getElementById('stop'),
-                modeBtn: document.getElementById('modeBtn')
+                modeBtn: document.getElementById('modeBtn'),
+                // Second set of buttons for sensor tab
+                autoMode2: document.getElementById('auto-mode-btn-2'),
+                manualMode2: document.getElementById('manual-mode-btn-2'),
+                emergencyStop2: document.getElementById('emergency-stop-btn-2'),
+                forward2: document.getElementById('forward-2'),
+                backward2: document.getElementById('backward-2'),
+                left2: document.getElementById('left-2'),
+                right2: document.getElementById('right-2'),
+                stop2: document.getElementById('stop-2'),
+                modeBtn2: document.getElementById('modeBtn-2')
+            },
+            tabs: {
+                mainView: document.getElementById('main-view'),
+                sensorData: document.getElementById('sensor-data'),
+                tabButtons: document.querySelectorAll('.tab-button')
             }
         };
+
+        // Tab switching functionality
+        elements.tabs.tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // Update active tab button
+                elements.tabs.tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // Update active tab content
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
 
         function setupButton(id, command) {
             const button = elements.buttons[id];
@@ -263,10 +361,18 @@
             }, {passive: false});
         }
 
+        // Setup first set of buttons
         setupButton('forward', 'FORWARD');
         setupButton('backward', 'BACKWARD');
         setupButton('left', 'LEFT');
         setupButton('right', 'RIGHT');
+        
+        // Setup second set of buttons
+        setupButton('forward2', 'FORWARD');
+        setupButton('backward2', 'BACKWARD');
+        setupButton('left2', 'LEFT');
+        setupButton('right2', 'RIGHT');
+        
         elements.buttons.stop.addEventListener('click', () => {
             sendCommand('STOP', 'press');
             elements.buttons.forward.classList.remove('pressed');
@@ -274,14 +380,47 @@
             elements.buttons.left.classList.remove('pressed');
             elements.buttons.right.classList.remove('pressed');
         });
+        
+        elements.buttons.stop2.addEventListener('click', () => {
+            sendCommand('STOP', 'press');
+            elements.buttons.forward2.classList.remove('pressed');
+            elements.buttons.backward2.classList.remove('pressed');
+            elements.buttons.left2.classList.remove('pressed');
+            elements.buttons.right2.classList.remove('pressed');
+        });
 
         elements.buttons.modeBtn.addEventListener('click', () => {
+            setMode(!state.manualMode);
+        });
+        
+        elements.buttons.modeBtn2.addEventListener('click', () => {
             setMode(!state.manualMode);
         });
 
         elements.buttons.emergencyStop.addEventListener('click', () => {
             sendCommand('STOP', 'press');
             showEmergencyStop('Manual emergency stop');
+        });
+        
+        elements.buttons.emergencyStop2.addEventListener('click', () => {
+            sendCommand('STOP', 'press');
+            showEmergencyStop('Manual emergency stop');
+        });
+
+        elements.buttons.autoMode.addEventListener('click', () => {
+            setMode(false);
+        });
+        
+        elements.buttons.autoMode2.addEventListener('click', () => {
+            setMode(false);
+        });
+
+        elements.buttons.manualMode.addEventListener('click', () => {
+            setMode(true);
+        });
+        
+        elements.buttons.manualMode2.addEventListener('click', () => {
+            setMode(true);
         });
 
         function sendCommand(cmd, action) {
@@ -366,6 +505,8 @@
             updateModeUI();
             elements.buttons.modeBtn.textContent = manual ? 'MANUAL MODE' : 'AUTO MODE';
             elements.buttons.modeBtn.style.backgroundColor = manual ? '#2196F3' : '#4CAF50';
+            elements.buttons.modeBtn2.textContent = manual ? 'MANUAL MODE' : 'AUTO MODE';
+            elements.buttons.modeBtn2.style.backgroundColor = manual ? '#2196F3' : '#4CAF50';
             if (state.socket && state.socket.connected) {
                 state.socket.emit('set_mode', { mode: manual ? 'manual' : 'auto' });
             }
@@ -377,6 +518,10 @@
                 elements.buttons.manualMode.classList.remove('btn-secondary');
                 elements.buttons.autoMode.classList.add('btn-secondary');
                 elements.buttons.autoMode.classList.remove('btn-primary');
+                elements.buttons.manualMode2.classList.add('btn-primary');
+                elements.buttons.manualMode2.classList.remove('btn-secondary');
+                elements.buttons.autoMode2.classList.add('btn-secondary');
+                elements.buttons.autoMode2.classList.remove('btn-primary');
                 elements.statusElements.modeIndicator.textContent = 'MANUAL';
                 elements.statusElements.modeIndicator.className = 'mode-indicator mode-manual';
             } else {
@@ -384,6 +529,10 @@
                 elements.buttons.autoMode.classList.remove('btn-secondary');
                 elements.buttons.manualMode.classList.add('btn-secondary');
                 elements.buttons.manualMode.classList.remove('btn-primary');
+                elements.buttons.autoMode2.classList.add('btn-primary');
+                elements.buttons.autoMode2.classList.remove('btn-secondary');
+                elements.buttons.manualMode2.classList.add('btn-secondary');
+                elements.buttons.manualMode2.classList.remove('btn-primary');
                 elements.statusElements.modeIndicator.textContent = 'AUTO';
                 elements.statusElements.modeIndicator.className = 'mode-indicator mode-auto';
             }
@@ -532,6 +681,10 @@
             elements.buttons.backward.classList.remove('pressed');
             elements.buttons.left.classList.remove('pressed');
             elements.buttons.right.classList.remove('pressed');
+            elements.buttons.forward2.classList.remove('pressed');
+            elements.buttons.backward2.classList.remove('pressed');
+            elements.buttons.left2.classList.remove('pressed');
+            elements.buttons.right2.classList.remove('pressed');
         }
 
         function updateStatus() {
@@ -572,10 +725,15 @@
                     elements.buttons.backward.classList.remove('pressed');
                     elements.buttons.left.classList.remove('pressed');
                     elements.buttons.right.classList.remove('pressed');
+                    elements.buttons.forward2.classList.remove('pressed');
+                    elements.buttons.backward2.classList.remove('pressed');
+                    elements.buttons.left2.classList.remove('pressed');
+                    elements.buttons.right2.classList.remove('pressed');
                 } else {
                     state.activeCommand = cmd;
                     sendCommand(cmd, 'press');
                     elements.buttons[cmd.toLowerCase()].classList.add('pressed');
+                    elements.buttons[cmd.toLowerCase() + '2'].classList.add('pressed');
                 }
             }
         });
@@ -593,6 +751,7 @@
                 state.activeCommand = null;
                 sendCommand(cmd, 'release');
                 elements.buttons[cmd.toLowerCase()].classList.remove('pressed');
+                elements.buttons[cmd.toLowerCase() + '2'].classList.remove('pressed');
             }
         });
 
