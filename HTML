@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search and Rescue Operation Control Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; background-color: #f8f9fa; }
+        .control-panel { background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        #map-wrapper { position: relative; width: 100%; height: 60vh; overflow: auto; border-radius: 10px; background-color: #e9ecef; }
+        #map-canvas { width: 100%; height: 100%; image-rendering: crisp-edges; }
+        #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; color: white; font-size: 1.5rem; }
+        .status-panel { background-color: white; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        .sensor-panel { background-color: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0d6efd; }
+        .status-item { margin-bottom: 10px; }
+        .robot-marker { position: absolute; width: 16px; height: 16px; background-color: red; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; }
+        .human-marker { position: absolute; width: 20px; height: 20px; background-color: rgba(255, 0, 0, 0.7); border-radius: 50%; transform: translate(-50%, -50%); z-index: 11; }
+        .robot-direction { position: absolute; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 16px solid blue; transform-origin: center bottom; transform: translate(-50%, -50%) rotate(0deg); z-index: 12; }
+        .lidar-point { position: absolute; width: 4px; height: 4px; background-color: rgba(255, 0, 0, 0.7); border-radius: 50%; transform: translate(-50%, -50%); z-index: 9; }
+        .map-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 8; }
+        .mode-indicator { font-weight: bold; padding: 5px 10px; border-radius: 5px; }
+        .mode-auto { background-color: #28a745; color: white; }
+        .mode-manual { background-color: #007bff; color: white; }
+        #camera-feed { background-color: #000; border-radius: 5px; width: 100%; height: auto; }
+        .controller { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto 1fr 1fr 1fr; gap: 8px; max-width: 300px; margin: 20px auto; }
+        button { padding: 15px 0; font-size: 16px; border: none; border-radius: 8px; min-width: 60px; touch-action: manipulation; }
+        #modeBtn { grid-column: 1 / span 3; background-color: #4CAF50; color: white; font-weight: bold; padding: 12px; }
+        #forward { grid-column: 2; grid-row: 2; background-color: #2196F3; color: white; }
+        #left { grid-column: 1; grid-row: 3; background-color: #FF9800; color: white; }
+        #stop { grid-column: 2; grid-row: 3; background-color: #f44336; color: white; }
+        #right { grid-column: 3; grid-row: 3; background-color: #FF9800; color: white; }
+        #backward { grid-column: 2; grid-row: 4; background-color: #2196F3; color: white; }
+        .arrow { font-size: 20px; }
+        .pressed { opacity: 0.7; }
+        .sensor-header { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .sensor-header i { 
+            font-size: 1.5rem; 
+            margin-right: 10px; 
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="text-center mb-4">Search and Rescue Operation Control Panel</h1>
+        <div class="row">
+            <div class="col-md-8">
+                <div class="control-panel">
+                    <h3 class="mb-4">SLAM Map Viewer</h3>
+                    <div id="map-wrapper">
+                        <canvas id="map-canvas"></canvas>
+                        <div id="loading-overlay">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading Map...</p>
+                            </div>
+                        </div>
+                        <div class="map-overlay" id="map-overlay"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="control-panel">
+                    <h4 class="mb-3">Camera Feed</h4>
+                    <div class="ratio ratio-16x9">
+                        <img id="camera-feed" src="/video_feed" class="img-fluid" alt="Camera Feed">
+                    </div>
+                </div>
+                
+                <!-- Status Panel (Robot Status) -->
+                <div class="status-panel">
+                    <h4 class="mb-3">Robot Status</h4>
+                    <div class="status-item">
+                        <strong>Connection:</strong> 
+                        <span id="connection-status" class="badge bg-danger">Disconnected</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Mode:</strong> 
+                        <span id="mode-indicator" class="mode-indicator mode-auto">AUTO</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Position:</strong> 
+                        <span id="robot-position">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Orientation:</strong> 
+                        <span id="robot-orientation">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Map Resolution:</strong> 
+                        <span id="resolution">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Last Update:</strong> 
+                        <span id="last-update">Never</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>LIDAR:</strong> 
+                        <span id="lidar-status" class="fw-bold text-danger">Inactive</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Obstacles:</strong> 
+                        <span id="obstacle-status" class="fw-bold text-success">Clear</span>
+                    </div>
+                </div>
+                
+                <!-- New Sensor Data Panel -->
+                <div class="sensor-panel">
+                    <div class="sensor-header">
+                        <i class="bi bi-speedometer2"></i>
+                        <h4 class="mb-0">Sensor Data</h4>
+                    </div>
+                    <div class="status-item">
+                        <strong>Temperature:</strong> 
+                        <span id="temperature">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Altitude:</strong> 
+                        <span id="altitude">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>MQ2 (Combustible Gas):</strong> 
+                        <span id="mq2">Unknown</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>MQ135 (Air Quality):</strong> 
+                        <span id="mq135">Unknown</span>
+                    </div>
+                </div>
+                
+                <div class="control-panel">
+                    <h4 class="mb-3">Control</h4>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-3">
+                        <button id="auto-mode-btn" class="btn btn-primary">
+                            <i class="bi bi-robot"></i> Auto Mode
+                        </button>
+                        <button id="manual-mode-btn" class="btn btn-secondary">
+                            <i class="bi bi-joystick"></i> Manual Mode
+                        </button>
+                    </div>
+                    <div class="controller">
+                        <button id="modeBtn">MANUAL MODE</button>
+                        <button id="forward" class="arrow">↑</button>
+                        <button id="left" class="arrow">←</button>
+                        <button id="stop">STOP</button>
+                        <button id="right" class="arrow">→</button>
+                        <button id="backward" class="arrow">↓</button>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="emergency-stop-btn" class="btn btn-danger">
+                            <i class="bi bi-exclamation-octagon-fill"></i> Emergency Stop
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // The JavaScript code remains exactly the same as in your original
+        // Only the HTML structure has been modified
+        const config = {
+            initScale: 1.0,
+            scaleStep: 0.2,
+            maxScale: 5,
+            minScale: 0.5,
+            maxSpeed: 0.8,
+            maxAngular: 1.0,
+            mapRefreshInterval: 1000,
+            connectionRetryInterval: 3000
+        };
+
+        let state = {
+            currentScale: config.initScale,
+            mapData: null,
+            robotPose: null,
+            socket: null,
+            manualMode: false,
+            lastMapUpdate: 0,
+            robotMarker: null,
+            robotDirection: null,
+            humanMarkers: [],
+            lidarPoints: [],
+            connectionRetryTimer: null,
+            mapContext: null,
+            activeCommand: null,
+            mapOffsetX: 0,
+            mapOffsetY: 0
+        };
+
+        const elements = {
+            mapCanvas: document.getElementById('map-canvas'),
+            mapWrapper: document.getElementById('map-wrapper'),
+            mapOverlay: document.getElementById('map-overlay'),
+            loadingOverlay: document.getElementById('loading-overlay'),
+            cameraFeed: document.getElementById('camera-feed'),
+            statusElements: {
+                robotPosition: document.getElementById('robot-position'),
+                robotOrientation: document.getElementById('robot-orientation'),
+                resolution: document.getElementById('resolution'),
+                lastUpdate: document.getElementById('last-update'),
+                lidarStatus: document.getElementById('lidar-status'),
+                obstacleStatus: document.getElementById('obstacle-status'),
+                connection: document.getElementById('connection-status'),
+                modeIndicator: document.getElementById('mode-indicator'),
+                temperature: document.getElementById('temperature'),
+                altitude: document.getElementById('altitude'),
+                mq2: document.getElementById('mq2'),
+                mq135: document.getElementById('mq135')
+            },
+            buttons: {
+                autoMode: document.getElementById('auto-mode-btn'),
+                manualMode: document.getElementById('manual-mode-btn'),
+                emergencyStop: document.getElementById('emergency-stop-btn'),
+                forward: document.getElementById('forward'),
+                backward: document.getElementById('backward'),
+                left: document.getElementById('left'),
+                right: document.getElementById('right'),
+                stop: document.getElementById('stop'),
+                modeBtn: document.getElementById('modeBtn')
+            }
+        };
+
+        function setupButton(id, command) {
+            const button = elements.buttons[id];
+            const start = () => {
+                if (state.manualMode) {
+                    state.activeCommand = command;
+                    button.classList.add('pressed');
+                    sendCommand(command, 'press');
+                }
+            };
+            const end = () => {
+                if (state.activeCommand === command) {
+                    state.activeCommand = null;
+                    button.classList.remove('pressed');
+                    sendCommand(command, 'release');
+                }
+            };
+            button.addEventListener('mousedown', start);
+            button.addEventListener('mouseup', end);
+            button.addEventListener('mouseleave', end);
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                start();
+            }, {passive: false});
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                end();
+            }, {passive: false});
+        }
+
+        setupButton('forward', 'FORWARD');
+        setupButton('backward', 'BACKWARD');
+        setupButton('left', 'LEFT');
+        setupButton('right', 'RIGHT');
+        elements.buttons.stop.addEventListener('click', () => {
+            sendCommand('STOP', 'press');
+            elements.buttons.forward.classList.remove('pressed');
+            elements.buttons.backward.classList.remove('pressed');
+            elements.buttons.left.classList.remove('pressed');
+            elements.buttons.right.classList.remove('pressed');
+        });
+
+        elements.buttons.modeBtn.addEventListener('click', () => {
+            setMode(!state.manualMode);
+        });
+
+        elements.buttons.emergencyStop.addEventListener('click', () => {
+            sendCommand('STOP', 'press');
+            showEmergencyStop('Manual emergency stop');
+        });
+
+        function sendCommand(cmd, action) {
+            fetch('/control', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({command: cmd, action: action})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateStatus();
+                }
+            })
+            .catch(error => {
+                elements.statusElements.connection.textContent = 'Connection error';
+            });
+        }
+
+        function initWebSocket() {
+            if (state.socket) state.socket.disconnect();
+            if (state.connectionRetryTimer) {
+                clearTimeout(state.connectionRetryTimer);
+                state.connectionRetryTimer = null;
+            }
+            state.socket = io({
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                randomizationFactor: 0.5
+            });
+            state.socket.on('connect', () => {
+                updateConnectionStatus(true);
+                state.socket.emit('get_initial_state');
+                setMode(false);
+                fetchSensorData();
+            });
+            state.socket.on('disconnect', () => {
+                updateConnectionStatus(false);
+                state.connectionRetryTimer = setTimeout(initWebSocket, config.connectionRetryInterval);
+            });
+            state.socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                updateConnectionStatus(false);
+            });
+            state.socket.on('map_update', (data) => {
+                updateMapData(data);
+                refreshMap();
+            });
+            state.socket.on('pose_update', (data) => {
+                updateRobotPose(data);
+            });
+            state.socket.on('lidar_update', (data) => {
+                updateLidarStatus(data);
+            });
+            state.socket.on('camera_frame', (data) => {
+                updateCameraFeed();
+            });
+            state.socket.on('mode_update', (data) => {
+                setMode(data.mode === 'manual');
+            });
+            state.socket.on('emergency_stop', (data) => {
+                showEmergencyStop(data.reason || 'Emergency stop activated');
+            });
+            state.socket.on('sensor_update', (data) => {
+                updateSensorData(data);
+            });
+            state.socket.on('heartbeat', () => {
+                updateConnectionStatus(true);
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const elem = elements.statusElements.connection;
+            elem.className = connected ? 'badge bg-success' : 'badge bg-danger';
+            elem.textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
+        function setMode(manual) {
+            state.manualMode = manual;
+            updateModeUI();
+            elements.buttons.modeBtn.textContent = manual ? 'MANUAL MODE' : 'AUTO MODE';
+            elements.buttons.modeBtn.style.backgroundColor = manual ? '#2196F3' : '#4CAF50';
+            if (state.socket && state.socket.connected) {
+                state.socket.emit('set_mode', { mode: manual ? 'manual' : 'auto' });
+            }
+        }
+
+        function updateModeUI() {
+            if (state.manualMode) {
+                elements.buttons.manualMode.classList.add('btn-primary');
+                elements.buttons.manualMode.classList.remove('btn-secondary');
+                elements.buttons.autoMode.classList.add('btn-secondary');
+                elements.buttons.autoMode.classList.remove('btn-primary');
+                elements.statusElements.modeIndicator.textContent = 'MANUAL';
+                elements.statusElements.modeIndicator.className = 'mode-indicator mode-manual';
+            } else {
+                elements.buttons.autoMode.classList.add('btn-primary');
+                elements.buttons.autoMode.classList.remove('btn-secondary');
+                elements.buttons.manualMode.classList.add('btn-secondary');
+                elements.buttons.manualMode.classList.remove('btn-primary');
+                elements.statusElements.modeIndicator.textContent = 'AUTO';
+                elements.statusElements.modeIndicator.className = 'mode-indicator mode-auto';
+            }
+        }
+
+        function updateMapData(data) {
+            state.mapData = data;
+            elements.statusElements.resolution.textContent = data.resolution.toFixed(3) + ' m/pixel';
+            elements.statusElements.lastUpdate.textContent = new Date(data.timestamp * 1000).toLocaleTimeString();
+            state.mapContext = elements.mapCanvas.getContext('2d');
+            refreshMap();
+        }
+
+        function refreshMap() {
+            if (!state.mapData) return;
+            const img = new Image();
+            img.src = `/map?t=${Date.now()}`;
+            img.onload = () => {
+                elements.mapCanvas.width = state.mapData.width;
+                elements.mapCanvas.height = state.mapData.height;
+                state.mapContext.drawImage(img, 0, 0);
+                elements.loadingOverlay.style.display = 'none';
+                updateOverlay();
+            };
+            img.onerror = () => {
+                elements.loadingOverlay.style.display = 'flex';
+            };
+        }
+
+        function updateRobotPose(data) {
+            state.robotPose = data;
+            elements.statusElements.robotPosition.textContent = `(${data.x.toFixed(2)}, ${data.y.toFixed(2)}) m`;
+            elements.statusElements.robotOrientation.textContent = `${(data.yaw * 180 / Math.PI).toFixed(1)}°`;
+            updateOverlay();
+        }
+
+        function updateOverlay() {
+            if (!state.mapData || !state.robotPose) return;
+            elements.mapOverlay.innerHTML = '';
+            const resolution = state.mapData.resolution;
+            const originX = state.mapData.origin.x;
+            const originY = state.mapData.origin.y;
+            
+            // Calculate the robot position in pixels
+            // Note: In ROS, the map origin is at the bottom-left, but in HTML canvas it's top-left
+            // So we need to flip the Y coordinate
+            const robotX = (state.robotPose.x - originX) / resolution;
+            const robotY = state.mapData.height - ((state.robotPose.y - originY) / resolution);
+            
+            // Create robot marker
+            state.robotMarker = document.createElement('div');
+            state.robotMarker.className = 'robot-marker';
+            state.robotMarker.style.left = `${robotX}px`;
+            state.robotMarker.style.top = `${robotY}px`;
+            elements.mapOverlay.appendChild(state.robotMarker);
+            
+            // Create robot direction indicator
+            state.robotDirection = document.createElement('div');
+            state.robotDirection.className = 'robot-direction';
+            state.robotDirection.style.left = `${robotX}px`;
+            state.robotDirection.style.top = `${robotY}px`;
+            // Convert yaw to degrees and adjust for HTML coordinate system
+            const yawDegrees = state.robotPose.yaw * 180 / Math.PI;
+            state.robotDirection.style.transform = `translate(-50%, -50%) rotate(${-yawDegrees}deg)`;
+            elements.mapOverlay.appendChild(state.robotDirection);
+            
+            // Add LIDAR points
+            if (state.lidarPoints && state.lidarPoints.length > 0) {
+                state.lidarPoints.forEach(point => {
+                    const lidarPoint = document.createElement('div');
+                    lidarPoint.className = 'lidar-point';
+                    lidarPoint.style.left = `${point.x}px`;
+                    lidarPoint.style.top = `${point.y}px`;
+                    elements.mapOverlay.appendChild(lidarPoint);
+                });
+            }
+            
+            // Add human markers
+            state.humanMarkers.forEach(marker => {
+                const humanMarker = document.createElement('div');
+                humanMarker.className = 'human-marker';
+                humanMarker.style.left = `${marker.x}px`;
+                humanMarker.style.top = `${marker.y}px`;
+                elements.mapOverlay.appendChild(humanMarker);
+            });
+        }
+
+        function updateLidarStatus(data) {
+            elements.statusElements.lidarStatus.textContent = 'Active';
+            elements.statusElements.lidarStatus.className = 'fw-bold text-success';
+            state.lidarPoints = [];
+            
+            if (!state.mapData || !state.robotPose) return;
+            
+            const resolution = state.mapData.resolution;
+            const originX = state.mapData.origin.x;
+            const originY = state.mapData.origin.y;
+            
+            // Calculate the robot position in pixels (with Y flipped)
+            const robotX = (state.robotPose.x - originX) / resolution;
+            const robotY = state.mapData.height - ((state.robotPose.y - originY) / resolution);
+            
+            data.ranges.forEach((range, i) => {
+                if (range > 0 && range < 10) {
+                    const angle = data.angles[i];
+                    // Calculate LIDAR point in world coordinates
+                    const worldX = state.robotPose.x + range * Math.cos(angle + state.robotPose.yaw);
+                    const worldY = state.robotPose.y + range * Math.sin(angle + state.robotPose.yaw);
+                    
+                    // Convert to pixel coordinates (flip Y)
+                    const x = (worldX - originX) / resolution;
+                    const y = state.mapData.height - ((worldY - originY) / resolution);
+                    
+                    state.lidarPoints.push({ x, y });
+                }
+            });
+            
+            updateOverlay();
+            elements.statusElements.obstacleStatus.textContent = state.lidarPoints.length > 0 ? 'Detected' : 'Clear';
+            elements.statusElements.obstacleStatus.className = state.lidarPoints.length > 0 ? 'fw-bold text-warning' : 'fw-bold text-success';
+        }
+
+        function updateCameraFeed() {
+            elements.cameraFeed.src = `/video_feed?t=${Date.now()}`;
+        }
+
+        function updateSensorData(data) {
+            elements.statusElements.temperature.textContent = `${data.temperature.toFixed(1)} °C`;
+            elements.statusElements.altitude.textContent = `${data.altitude.toFixed(1)} m`;
+            elements.statusElements.mq2.textContent = `${data.mq2.toFixed(1)} ppm`;
+            elements.statusElements.mq135.textContent = `${data.mq135.toFixed(1)} ppm`;
+        }
+
+        function fetchSensorData() {
+            fetch('/sensor_data')
+                .then(response => response.json())
+                .then(data => updateSensorData(data))
+                .catch(error => console.error('Sensor data fetch error:', error));
+        }
+
+        function showEmergencyStop(reason) {
+            alert(`Emergency Stop: ${reason}`);
+            setMode(false);
+            state.activeCommand = null;
+            elements.buttons.forward.classList.remove('pressed');
+            elements.buttons.backward.classList.remove('pressed');
+            elements.buttons.left.classList.remove('pressed');
+            elements.buttons.right.classList.remove('pressed');
+        }
+
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    setMode(data.mode === 'manual');
+                    elements.statusElements.obstacleStatus.textContent = data.active_command === 'none' ? 'Clear' : 'Active';
+                    elements.statusElements.obstacleStatus.className = data.active_command === 'none' ? 'fw-bold text-success' : 'fw-bold text-warning';
+                })
+                .catch(error => {
+                    console.error('Status fetch error:', error);
+                });
+        }
+
+        elements.mapWrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -config.scaleStep : config.scaleStep;
+            state.currentScale = Math.min(config.maxScale, Math.max(config.minScale, state.currentScale + delta));
+            elements.mapCanvas.style.transform = `scale(${state.currentScale})`;
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (!state.manualMode) return;
+            const keyMap = {
+                'ArrowUp': 'FORWARD',
+                'ArrowDown': 'BACKWARD',
+                'ArrowLeft': 'LEFT',
+                'ArrowRight': 'RIGHT',
+                ' ': 'STOP'
+            };
+            const cmd = keyMap[e.key];
+            if (cmd) {
+                e.preventDefault();
+                if (cmd === 'STOP') {
+                    sendCommand(cmd, 'press');
+                    elements.buttons.forward.classList.remove('pressed');
+                    elements.buttons.backward.classList.remove('pressed');
+                    elements.buttons.left.classList.remove('pressed');
+                    elements.buttons.right.classList.remove('pressed');
+                } else {
+                    state.activeCommand = cmd;
+                    sendCommand(cmd, 'press');
+                    elements.buttons[cmd.toLowerCase()].classList.add('pressed');
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (!state.manualMode) return;
+            const keyMap = {
+                'ArrowUp': 'FORWARD',
+                'ArrowDown': 'BACKWARD',
+                'ArrowLeft': 'LEFT',
+                'ArrowRight': 'RIGHT'
+            };
+            const cmd = keyMap[e.key];
+            if (cmd && state.activeCommand === cmd) {
+                state.activeCommand = null;
+                sendCommand(cmd, 'release');
+                elements.buttons[cmd.toLowerCase()].classList.remove('pressed');
+            }
+        });
+
+        initWebSocket();
+    </script>
+</body>
+</html>
